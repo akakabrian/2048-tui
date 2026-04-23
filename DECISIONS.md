@@ -58,3 +58,53 @@ completed `move()` pushes a snapshot before mutating.
 `textual>=0.80,<10` — matches the simcity-tui pin. Textual 10 has already
 changed a couple of widget internals we depend on (animation frame hook,
 `render_line` shape), so we stay under.
+
+## 6. Autosave-on-every-move
+
+The engine's `to_dict`/`from_dict` already round-trip everything, so
+persisting after each successful move costs ~1 ms (the `json.dump`) and
+means a crash or Ctrl-Q loses at most one move. We clear the savegame on
+terminal states (game-over or won-without-continue) so relaunching
+doesn't immediately pop the "YOU WIN" banner again — those states are
+terminal narrative, not positions worth resuming.
+
+`--no-resume` on the command line forces a fresh game even if a save
+exists; useful for scripted demos and the QA harness.
+
+## 7. Stage-7 phases implemented vs skipped
+
+Following the `tui-game-build` skill's phased polish. For 2048 we
+landed:
+
+* **Phase D (sound)** — synth sine blips for `move`/`merge`/`win`/`over`,
+  off by default (`s` toggles; `TWENTY48_SOUND=1` pre-enables). Debounce
+  at 120 ms so rapid arrow-mash doesn't spawn 20 `paplay` subprocesses.
+* **Phase E (save/load + stats)** — autosave on every move, per-size best
+  scores in a `StatsScreen` modal (`t`), confirm dialog on new-game over
+  a substantive in-progress game (`n` with score ≥ 100 + moves > 0).
+* **Phase F (animation)** — 2 Hz pulse on the status-panel
+  win/game-over banner, subtle 2-colour alternation. Board itself stays
+  still at idle (it's a small grid — animating would just flicker).
+
+Skipped with rationale:
+
+* **Phase A (UI beauty)** — 2048 is a numeric grid; pattern-cycling and
+  landmark glyphs make no sense. The warm browser-2048 palette and tile
+  style flash on merge already carry the visual.
+* **Phase B (budget / graphs / overlays)** — no sim state worth graphing.
+  The stats screen + a full help overlay covers the submenu space.
+* **Phase C (agent REST API)** — 2048 has a trivial action space (4
+  directions); writing a REST server is more ceremony than a real agent
+  needs. If we ever bot it, the engine is importable directly.
+* **Phase G (LLM advisor)** — "the optimal move is…" advice on 2048 is
+  well-studied and doesn't need Anthropic API spend per consult.
+
+## 8. Gotcha — `_render*` method names on Textual widgets
+
+The skill's gotcha catalog warns against `_render` as a helper-method
+name on `Widget` subclasses. Textual 8 also populates a `_render_markup:
+bool` attribute on widgets (including `Screen`), so naming a helper
+`_render_markup` shadows it with a method that Python then tries to
+treat as a bool at attribute access — `TypeError: 'bool' object is not
+callable` at the call site. Stick to `_build_*` / `_compose_*` / any
+prefix not in the `_render*` family.

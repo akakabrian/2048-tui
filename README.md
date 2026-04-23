@@ -28,16 +28,23 @@ python3 -m venv .venv
 |---|---|
 | `↑ ↓ ← →` or `k j h l` | slide |
 | `u` | undo (256-entry back-stack) |
-| `n` | new game |
+| `n` | new game (confirms if current score ≥ 100) |
 | `c` | continue playing past 2048 |
+| `t` | stats modal — per-size best scores |
+| `s` | toggle merge sounds (off by default) |
 | `+` / `-` | bigger / smaller board (3..6, starts a new game) |
 | `?` | help overlay |
 | `q` | quit |
 
+The game autosaves after every move to
+`~/.local/share/2048-tui/state.json`, so quitting and re-running resumes
+where you left off. Pass `--no-resume` on the command line to force a
+fresh game.
+
 ## Tests
 
 ```bash
-make test           # full QA suite (~5 s, 26 scenarios)
+make test           # full QA suite (~5 s, 35 scenarios)
 make test-only PAT=merge   # subset
 ```
 

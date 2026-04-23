@@ -483,6 +483,177 @@ async def s_header_reflects_score(app, pilot):
     assert "score" in app.sub_title.lower()
 
 
+async def s_autosave_persists_game(app, pilot):
+    """After a move, the savegame blob should be written to state and
+    `load_savegame(state_mod.load())` should return the same board."""
+    g = app.game
+    set_board(g, [[2, 2, 0, 0], [0]*4, [0]*4, [0]*4])
+    await pilot.press("left")
+    await pilot.pause()
+    # Reload state from disk.
+    data = state_mod.load()
+    blob = state_mod.load_savegame(data)
+    assert blob is not None, "savegame not persisted after move"
+    assert blob["size"] == g.size
+    # Board values on the persisted blob should match current in-memory.
+    assert blob["values"] == g.to_dict()["values"]
+
+
+async def s_savegame_cleared_on_terminal_state(app, pilot):
+    """Win-without-continue and game-over should clear the savegame so a
+    relaunch starts fresh, not re-pops the banner."""
+    g = app.game
+    # Rig a win-next-move position.
+    set_board(g, [[1024, 1024, 0, 0], [0]*4, [0]*4, [0]*4])
+    await pilot.press("left")
+    await pilot.pause()
+    assert g.won
+    data = state_mod.load()
+    assert state_mod.load_savegame(data) is None, (
+        "savegame should be cleared after win-without-continue"
+    )
+
+
+async def s_resume_restores_board(app_unused, pilot_unused):
+    """A fresh Twenty48App built while state has a savegame should resume
+    that board instead of generating a new random start."""
+    from twenty48_tui.app import Twenty48App  # noqa: F811
+    # Seed the state with a known savegame.
+    data = state_mod.load()
+    blob = {
+        "size": 4,
+        "win_value": 2048,
+        "score": 999,
+        "best": 9999,
+        "won": False, "continued": False,
+        "moves": 10, "merges": 3,
+        "values": [[2, 4, 8, 16], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]],
+    }
+    state_mod.store_savegame(data, blob)
+    state_mod.save(data)
+    # Build a new app — it should resume.
+    app2 = Twenty48App(size=4)
+    assert app2._resumed, "fresh app with savegame didn't resume"
+    assert app2.game.board.score == 999
+    assert app2.game.board.at(0, 0).value == 2
+    assert app2.game.board.at(3, 0).value == 16
+    # Clean up so other scenarios aren't affected.
+    data = state_mod.load()
+    state_mod.store_savegame(data, None)
+    state_mod.save(data)
+
+
+async def s_no_resume_flag(app_unused, pilot_unused):
+    """resume=False should ignore the savegame and start fresh."""
+    from twenty48_tui.app import Twenty48App  # noqa: F811
+    data = state_mod.load()
+    state_mod.store_savegame(data, {
+        "size": 4, "win_value": 2048, "score": 111,
+        "best": 0, "won": False, "continued": False,
+        "moves": 1, "merges": 0,
+        "values": [[2]*4]*4,
+    })
+    state_mod.save(data)
+    app2 = Twenty48App(size=4, resume=False)
+    assert not app2._resumed, "resume=False still resumed"
+    assert app2.game.board.score == 0
+    # Tidy up.
+    data = state_mod.load()
+    state_mod.store_savegame(data, None)
+    state_mod.save(data)
+
+
+async def s_new_game_confirm_modal(app, pilot):
+    """Pressing `n` mid-game with a non-trivial score should push a
+    ConfirmScreen, not immediately wipe. Answering 'n' (no) keeps the game;
+    answering 'y' starts new."""
+    from twenty48_tui.screens import ConfirmScreen
+    g = app.game
+    # Fake a game state with score >= 100 and some moves (the app checks
+    # both — score alone isn't enough).
+    g.board.score = 500
+    g.moves_count = 5
+    before = g.board.values_snapshot()
+    await pilot.press("n")
+    await pilot.pause()
+    # Top screen should now be ConfirmScreen.
+    assert isinstance(app.screen, ConfirmScreen), (
+        f"expected ConfirmScreen, got {type(app.screen).__name__}"
+    )
+    # Decline.
+    await pilot.press("n")
+    await pilot.pause()
+    # Board should be unchanged.
+    assert g.board.values_snapshot() == before, "declined confirm wiped board"
+    assert g.board.score == 500
+
+
+async def s_new_game_confirm_accepts(app, pilot):
+    """Pressing `y` on the ConfirmScreen starts a new game."""
+    g = app.game
+    g.board.score = 500
+    g.moves_count = 5
+    await pilot.press("n")
+    await pilot.pause()
+    await pilot.press("y")
+    await pilot.pause()
+    assert g.board.score == 0, "accepting confirm didn't reset score"
+
+
+async def s_stats_screen_opens(app, pilot):
+    """Pressing `t` should push a StatsScreen; any key dismisses."""
+    from twenty48_tui.screens import StatsScreen
+    await pilot.press("t")
+    await pilot.pause()
+    assert isinstance(app.screen, StatsScreen), (
+        f"expected StatsScreen, got {type(app.screen).__name__}"
+    )
+    await pilot.press("escape")
+    await pilot.pause()
+    assert not isinstance(app.screen, StatsScreen), "stats didn't dismiss"
+
+
+async def s_sound_toggle(app_unused, pilot_unused):
+    """Sounds module: toggle flips enabled; disabled sounds are no-ops;
+    debounce drops bursts."""
+    from twenty48_tui.sounds import Sounds
+    s = Sounds(enabled=False)
+    assert not s.enabled
+    # Replace system play with a counter so we don't depend on audio.
+    calls: list[str] = []
+    s._test_hook = lambda name, path: calls.append(name)
+    # Disabled — should not call hook.
+    s.play("merge")
+    assert calls == []
+    # Enable (only succeeds if a player is on PATH; if not, skip the
+    # enable-side assertions).
+    toggled = s.toggle()
+    if not s.available:
+        return
+    assert toggled is True
+    s.play("merge")
+    assert calls == ["merge"], calls
+    # Immediate repeat is debounced.
+    s.play("merge")
+    assert calls == ["merge"], "debounce failed"
+
+
+async def s_pulse_alternates_banner(app, pilot):
+    """The 2 Hz pulse should alternate `_pulse_phase` so the win banner
+    subtly shifts between two bright styles."""
+    g = app.game
+    # Put into won-not-continued state.
+    from tests.qa import set_board as _sb  # avoid shadowing
+    _sb(g, [[2048, 0, 0, 0], [0]*4, [0]*4, [0]*4])
+    g.won = True
+    g.continued = False
+    p0 = app.status_panel._pulse_phase
+    app._pulse()
+    assert app.status_panel._pulse_phase != p0, "pulse didn't flip phase"
+    app._pulse()
+    assert app.status_panel._pulse_phase == p0, "pulse didn't flip back"
+
+
 SCENARIOS: list[Scenario] = [
     Scenario("mount_clean", s_mount_clean),
     Scenario("score_starts_zero", s_score_starts_zero),
@@ -510,6 +681,15 @@ SCENARIOS: list[Scenario] = [
     Scenario("move_all_directions", s_move_all_directions),
     Scenario("up_and_down_work", s_up_and_down_work),
     Scenario("header_reflects_score", s_header_reflects_score),
+    Scenario("autosave_persists_game", s_autosave_persists_game),
+    Scenario("savegame_cleared_on_terminal_state", s_savegame_cleared_on_terminal_state),
+    Scenario("resume_restores_board", s_resume_restores_board),
+    Scenario("no_resume_flag", s_no_resume_flag),
+    Scenario("new_game_confirm_modal", s_new_game_confirm_modal),
+    Scenario("new_game_confirm_accepts", s_new_game_confirm_accepts),
+    Scenario("stats_screen_opens", s_stats_screen_opens),
+    Scenario("sound_toggle", s_sound_toggle),
+    Scenario("pulse_alternates_banner", s_pulse_alternates_banner),
 ]
 
 

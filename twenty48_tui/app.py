@@ -30,6 +30,8 @@ from textual.widgets import Footer, Header, Static
 from . import tiles
 from .engine import DIRECTIONS, Direction, Game
 from . import state as state_mod
+from .screens import ConfirmScreen, StatsScreen
+from .sounds import Sounds
 
 
 # Visual cell dimensions. Every cell is `CELL_W` columns × `CELL_H` rows.
@@ -148,13 +150,23 @@ class StatusPanel(Static):
         self.game = game
         self.border_title = "SCORE"
         self._last_snapshot: tuple | None = None
+        # Toggled every pulse tick; used to alternate the win/game-over
+        # banner between two bright styles so the banner draws the eye
+        # without being a hard blink.
+        self._pulse_phase = False
 
-    def refresh_panel(self) -> None:
+    def refresh_panel(self, *, force: bool = False) -> None:
         s = self.game.state()
+        # `force` is set by the 2 Hz pulse so the banner alternates even
+        # when no underlying state changed. We flip the phase on each
+        # forced call.
+        if force:
+            self._pulse_phase = not self._pulse_phase
         snapshot = (s["score"], s["best"], s["moves"], s["merges"],
                     s["max_tile"], s["won"], s["continued"], s["game_over"],
-                    s["size"], s["can_undo"])
-        if snapshot == self._last_snapshot:
+                    s["size"], s["can_undo"], self._pulse_phase if
+                    (s["won"] and not s["continued"]) or s["game_over"] else None)
+        if not force and snapshot == self._last_snapshot:
             return
         self._last_snapshot = snapshot
         t = Text()
@@ -168,16 +180,19 @@ class StatusPanel(Static):
         t.append(f"Max tile  {s['max_tile']:>8,}\n")
         t.append("\n")
         if s["game_over"]:
-            t.append("  GAME OVER  \n", style="bold white on rgb(180,40,40)")
+            bg = "rgb(180,40,40)" if self._pulse_phase else "rgb(140,20,20)"
+            t.append("  GAME OVER  \n", style=f"bold white on {bg}")
             t.append("press [bold]n[/] to start a new game\n")
         elif s["won"] and not s["continued"]:
-            t.append("  YOU WIN!  \n", style="bold black on rgb(230,155,15)")
+            bg = "rgb(230,155,15)" if self._pulse_phase else "rgb(255,190,40)"
+            t.append("  YOU WIN!  \n", style=f"bold black on {bg}")
             t.append("press [bold]c[/] to continue past 2048\n")
             t.append("or [bold]n[/] for a new game\n")
         else:
             t.append("arrows / hjkl move\n", style="dim")
             t.append("u undo  n new  c continue\n", style="dim")
-            t.append("+/- size  ? help  q quit\n", style="dim")
+            t.append("+/- size  t stats  s sound\n", style="dim")
+            t.append("? help  q quit\n", style="dim")
         self.update(t)
 
 
@@ -196,14 +211,18 @@ _HELP_TEXT = (
     "[bold]Keys[/]\n"
     "  ↑↓←→ or k/j/h/l   move\n"
     "  u                 undo (unlimited-ish, 256 back-stack)\n"
-    "  n                 new game\n"
+    "  n                 new game (confirms if mid-game)\n"
     "  c                 continue after win (dismisses banner)\n"
+    "  t                 stats — per-size best scores\n"
+    "  s                 toggle merge sounds\n"
     "  +/-               board size up/down (3..6)\n"
     "  ?                 toggle this help\n"
     "  q                 quit\n\n"
     "[bold]Scoring[/]  each merge adds the new tile's value to your\n"
     "           score. Per-size best scores are kept separately —\n"
     "           a big board is easier than a small one.\n\n"
+    "[bold]Autosave[/] the current game is persisted after every move,\n"
+    "            so quitting and re-running resumes where you left off.\n\n"
     "[dim]press any key to dismiss[/]"
 )
 
@@ -231,6 +250,8 @@ class Twenty48App(App):
         Binding("n", "new_game", "New"),
         Binding("u", "undo", "Undo"),
         Binding("c", "continue_game", "Continue"),
+        Binding("s", "toggle_sound", "Sound"),
+        Binding("t", "stats", "Stats"),
         Binding("question_mark", "toggle_help", "Help"),
         Binding("plus", "change_size(1)", "Size+", show=False),
         Binding("minus", "change_size(-1)", "Size-", show=False),
@@ -246,16 +267,32 @@ class Twenty48App(App):
         Binding("l", "move('right')", "l", show=False, priority=True),
     ]
 
-    def __init__(self, size: int = 4) -> None:
+    def __init__(self, size: int = 4, *, resume: bool = True) -> None:
         super().__init__()
         self._state = state_mod.load()
-        self.game = Game(size=size)
+        # Resume an in-progress savegame if one matches the requested size.
+        # Pass --no-resume (resume=False) to always start fresh.
+        save_blob = state_mod.load_savegame(self._state) if resume else None
+        if save_blob and int(save_blob.get("size", 0)) == size:
+            try:
+                self.game = Game.from_dict(save_blob)
+                self._resumed = True
+            except (TypeError, KeyError, ValueError):
+                # Bad save — discard and start fresh.
+                state_mod.store_savegame(self._state, None)
+                state_mod.save(self._state)
+                self.game = Game(size=size)
+                self._resumed = False
+        else:
+            self.game = Game(size=size)
+            self._resumed = False
         self.game.best_score = state_mod.best_for_size(self._state, size)
         self.board_view = BoardView(self.game)
         self.status_panel = StatusPanel(self.game)
         self.flash_bar = FlashBar(" ", id="flash-bar")
         self.help_overlay = HelpOverlay()
         self.help_overlay.id = "help-overlay"
+        self.sounds = Sounds()
 
     # --- layout --------------------------------------------------------
 
@@ -273,10 +310,40 @@ class Twenty48App(App):
     async def on_mount(self) -> None:
         self.board_view.border_title = f"2048 · {self.game.size}×{self.game.size}"
         self.status_panel.refresh_panel()
-        self._show_hint()
+        if self._resumed:
+            self.flash_bar.set_message(
+                f"[dim]resumed game — score {self.game.board.score:,}[/]"
+            )
+        else:
+            self._show_hint()
         self._update_header()
+        # 2 Hz pulse — drives the subtle highlight cycle on the win banner.
+        # Cheap: a single refresh_panel() call (no BoardView redraw needed
+        # because the board itself doesn't animate at idle).
+        self.set_interval(0.5, self._pulse)
 
     # --- actions -------------------------------------------------------
+
+    def _autosave(self) -> None:
+        """Persist the current game blob inside the state file. Called
+        after every successful move so a crash / Ctrl-C loses at most one
+        move."""
+        # Don't persist terminal game states — re-entering a game_over
+        # board on relaunch is confusing. Nor won-without-continue (same
+        # reason — the banner re-shows and feels stale).
+        s = self.game.state()
+        if s["game_over"] or (s["won"] and not s["continued"]):
+            state_mod.store_savegame(self._state, None)
+        else:
+            state_mod.store_savegame(self._state, self.game.to_dict())
+        self._state["last_size"] = self.game.size
+        state_mod.save(self._state)
+
+    def _pulse(self) -> None:
+        """2 Hz idle pulse — repaints the status panel so the win/game-over
+        banner can subtly alternate. BoardView is untouched at idle, so the
+        cost is negligible (<0.1 ms)."""
+        self.status_panel.refresh_panel(force=True)
 
     def _update_header(self) -> None:
         s = self.game.state()
@@ -336,13 +403,23 @@ class Twenty48App(App):
             # want the first post-help keypress to also slide the board.
             self._hide_help()
             return
+        merges_before = self.game.merges_count
+        won_before = self.game.won
         changed = self.game.move(direction)  # type: ignore[arg-type]
         if changed:
             self._animate_move()
             state_mod.record_best(self._state, self.game.size,
                                   self.game.best_score)
-            state_mod.save(self._state)
             s = self.game.state()
+            if s["won"] and not won_before:
+                self.sounds.play("win")
+            elif s["game_over"]:
+                self.sounds.play("over")
+            elif s["merges"] > merges_before:
+                self.sounds.play("merge")
+            else:
+                self.sounds.play("move")
+            self._autosave()
             if s["won"] and not s["continued"]:
                 self.flash_bar.set_message(
                     "[bold yellow]🎉 you reached 2048![/] "
@@ -376,7 +453,30 @@ class Twenty48App(App):
         if self.help_overlay.display:
             self._hide_help()
             return
+        # Confirm if there's a substantive in-progress game we'd wipe.
+        # "Substantive" = player has made moves AND the score isn't trivial.
+        s = self.game.state()
+        if (s["moves"] > 0 and s["score"] >= 100
+                and not s["game_over"]):
+            def _after(ok: bool | None) -> None:
+                if ok:
+                    self._do_new_game()
+                else:
+                    self.flash_bar.set_message("[dim]kept current game[/]")
+            self.push_screen(
+                ConfirmScreen(
+                    f"Start a new game? "
+                    f"Current score [bold]{s['score']:,}[/] will be lost."
+                ),
+                _after,
+            )
+            return
+        self._do_new_game()
+
+    def _do_new_game(self) -> None:
         self.game.new_game()
+        state_mod.store_savegame(self._state, None)
+        state_mod.save(self._state)
         self.board_view.refresh()
         self.status_panel.refresh_panel()
         self.flash_bar.set_message("[bold green]new game[/]")
@@ -415,6 +515,8 @@ class Twenty48App(App):
         # Load the persisted best for the NEW size.
         self.game.best_score = state_mod.best_for_size(self._state, new_size)
         self._state["last_size"] = new_size
+        # Size change = new game, so clear any lingering savegame.
+        state_mod.store_savegame(self._state, None)
         state_mod.save(self._state)
         self.board_view.refresh()
         self.status_panel.refresh_panel()
@@ -432,9 +534,36 @@ class Twenty48App(App):
     def _hide_help(self) -> None:
         self.help_overlay.display = False
 
+    def action_toggle_sound(self) -> None:
+        if self.help_overlay.display:
+            self._hide_help()
+            return
+        if not self.sounds.available:
+            self.flash_bar.set_message(
+                "[red]no audio player found[/] "
+                "(install paplay / aplay / afplay)"
+            )
+            return
+        on = self.sounds.toggle()
+        self.flash_bar.set_message(
+            f"[bold {'green' if on else 'yellow'}]"
+            f"sound {'on' if on else 'off'}[/]"
+        )
 
-def run(size: int = 4) -> None:
-    app = Twenty48App(size=size)
+    def action_stats(self) -> None:
+        if self.help_overlay.display:
+            self._hide_help()
+            return
+        # Refresh the state blob from disk so we show the canonical
+        # best-per-size values (they're updated in-memory on every move,
+        # but this is safer if a future action forgets to update).
+        state_mod.record_best(self._state, self.game.size,
+                              self.game.best_score)
+        self.push_screen(StatsScreen(self._state))
+
+
+def run(size: int = 4, *, resume: bool = True) -> None:
+    app = Twenty48App(size=size, resume=resume)
     try:
         app.run()
     finally:

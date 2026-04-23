@@ -81,3 +81,33 @@ def record_best(data: dict[str, Any], size: int, score: int) -> bool:
         data.setdefault("best_per_size", {})[key] = score
         return True
     return False
+
+
+def store_savegame(data: dict[str, Any], game_blob: dict[str, Any] | None) -> None:
+    """Write or clear the in-progress savegame inside the state dict.
+    `game_blob` is the output of `Game.to_dict()` or None to clear."""
+    if game_blob is None:
+        data.pop("savegame", None)
+    else:
+        data["savegame"] = game_blob
+
+
+def load_savegame(data: dict[str, Any]) -> dict[str, Any] | None:
+    """Return the in-progress savegame blob if present — caller passes to
+    `Game.from_dict`. None means "no save" (fresh start)."""
+    blob = data.get("savegame")
+    return blob if isinstance(blob, dict) else None
+
+
+def all_best_scores(data: dict[str, Any]) -> dict[int, int]:
+    """All per-size best scores as an {int size: int score} mapping.
+    Guarantees keys 3..6 are present (filled with 0 if missing) so the
+    stats screen can render a stable table."""
+    raw = data.get("best_per_size", {}) or {}
+    out: dict[int, int] = {n: 0 for n in (3, 4, 5, 6)}
+    for k, v in raw.items():
+        try:
+            out[int(k)] = int(v)
+        except (ValueError, TypeError):
+            continue
+    return out
