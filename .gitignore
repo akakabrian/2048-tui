@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+.pyright*
+
+# QA output
+tests/out/*.svg
+tests/out/*.png
+
+# Vendored engine is kept (trivial C++ reference, <1 MB). See DECISIONS.md.
+
+# Save / state files go in user config dir, not the repo. Leaving this here
+# so a stray `./2048.json` from running out of the repo doesn't get committed.
+/2048.json
+/*.sav
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
