@@ -58,11 +58,6 @@ def style_for(value: int, *, flash: bool = False) -> Style:
     return Style.parse(f"bold {fg} on {bg}" + (" reverse" if flash else ""))
 
 
-# Unknown / out-of-palette safety net — loud magenta so a regression is
-# obvious instead of a silent KeyError during render.
-UNKNOWN_STYLE = Style.parse("bold rgb(255,0,255) on black")
-
-
 def cell_text(value: int) -> str:
     """Render a tile value into a short centered string for a 6-cell wide
     box (the default tile box width). Empty cells render as 6 spaces so

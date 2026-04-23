@@ -24,8 +24,8 @@ from typing import Awaitable, Callable
 import tempfile as _tempfile
 os.environ["XDG_DATA_HOME"] = _tempfile.mkdtemp(prefix="twenty48-qa-")
 
-from twenty48_tui.app import Twenty48App, BoardView  # noqa: E402
-from twenty48_tui.engine import Game, Tile  # noqa: E402
+from twenty48_tui.app import Twenty48App  # noqa: E402
+from twenty48_tui.engine import Game  # noqa: E402
 from twenty48_tui import state as state_mod  # noqa: E402
 
 OUT = Path(__file__).resolve().parent / "out"

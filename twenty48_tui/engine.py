@@ -22,7 +22,6 @@ Score increments by the merged value (2+2 → 4 adds 4 to score; 1024+1024
 
 from __future__ import annotations
 
-import copy
 import random
 from dataclasses import dataclass, field
 from typing import Iterator, Literal
@@ -66,11 +65,6 @@ class Board:
         if not self.grid:
             self.grid = [[Tile() for _ in range(self.size)]
                          for _ in range(self.size)]
-
-    def copy(self) -> "Board":
-        b = Board(self.size, grid=[], score=self.score)
-        b.grid = [[Tile(t.value) for t in row] for row in self.grid]
-        return b
 
     def cells(self) -> Iterator[tuple[int, int, Tile]]:
         for y, row in enumerate(self.grid):

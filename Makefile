@@ -1,4 +1,4 @@
-.PHONY: all venv run test test-only clean
+.PHONY: all venv run test test-only perf clean
 
 # Bootstrap / engine targets are no-ops here: the "engine" is pure Python
 # (see DECISIONS.md). Kept as a convention so `make all` still means
@@ -20,6 +20,10 @@ test: venv
 # Subset by pattern. Usage: make test-only PAT=merge
 test-only: venv
 	.venv/bin/python -m tests.qa $(PAT)
+
+# Perf benchmark baseline.
+perf: venv
+	.venv/bin/python -m tests.perf
 
 clean:
 	rm -rf .venv *.egg-info tests/out/*.svg tests/out/*.png
