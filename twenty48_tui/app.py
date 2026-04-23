@@ -294,6 +294,26 @@ class Twenty48App(App):
         self.help_overlay.id = "help-overlay"
         self.sounds = Sounds()
 
+    # --- RL hooks (headless; no Textual required) ----------------------
+
+    def game_state_vector(self):
+        from . import rl_hooks
+        return rl_hooks.state_vector(self.game)
+
+    def game_reward(self, prev_score: int = 0,
+                    prev_game_over: bool = False,
+                    board_changed: bool = True) -> float:
+        from . import rl_hooks
+        return rl_hooks.compute_reward(
+            prev_score, prev_game_over, board_changed, self.game)
+
+    def is_terminal(self) -> bool:
+        from . import rl_hooks
+        return rl_hooks.is_terminal(self.game)
+
+    def reset_game(self) -> None:
+        self.game.new_game()
+
     # --- layout --------------------------------------------------------
 
     def compose(self) -> ComposeResult:
