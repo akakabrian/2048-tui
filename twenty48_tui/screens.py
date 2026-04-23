@@ -15,6 +15,7 @@ rely on markup for inline styling instead of building a `rich.Text`.
 
 from __future__ import annotations
 
+from textual import events
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
@@ -74,7 +75,11 @@ class StatsScreen(ModalScreen[None]):
         return "\n".join(lines)
 
     # Any key dismisses — on_key catches what bindings don't.
-    def on_key(self, event) -> None:
+    def on_key(self, event: events.Key) -> None:
+        # Prevent dismiss keys from bubbling into app-level actions
+        # (for example `n` triggering "new game" right after closing stats).
+        event.stop()
+        event.prevent_default()
         self.dismiss(None)
 
 

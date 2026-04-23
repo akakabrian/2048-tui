@@ -499,6 +499,27 @@ async def s_autosave_persists_game(app, pilot):
     assert blob["values"] == g.to_dict()["values"]
 
 
+async def s_autosave_write_failure_is_nonfatal(app, pilot):
+    """A read-only state path must not freeze gameplay.
+
+    Regression for DOGFOOD M1: movement should still apply even when
+    autosave can't write state.json.
+    """
+    g = app.game
+    set_board(g, [[2, 2, 0, 0], [0] * 4, [0] * 4, [0] * 4])
+    before = g.board.values_snapshot()
+    original_state_path = state_mod.STATE_PATH
+    state_mod.STATE_PATH = Path("/proc/2048-tui/state.json")
+    try:
+        await pilot.press("left")
+        await pilot.pause()
+    finally:
+        state_mod.STATE_PATH = original_state_path
+    assert g.board.values_snapshot() != before, (
+        "board did not change when autosave path was read-only"
+    )
+
+
 async def s_savegame_cleared_on_terminal_state(app, pilot):
     """Win-without-continue and game-over should clear the savegame so a
     relaunch starts fresh, not re-pops the banner."""
@@ -613,6 +634,30 @@ async def s_stats_screen_opens(app, pilot):
     assert not isinstance(app.screen, StatsScreen), "stats didn't dismiss"
 
 
+async def s_stats_dismiss_key_does_not_trigger_app_action(app, pilot):
+    """Pressing `n` to dismiss stats must not also fire app-level new-game."""
+    from twenty48_tui.screens import StatsScreen
+    g = app.game
+    set_board(g, [[2, 4, 8, 16], [0] * 4, [0] * 4, [0] * 4])
+    g.board.score = 500
+    g.moves_count = 5
+    before = g.board.values_snapshot()
+
+    await pilot.press("t")
+    await pilot.pause()
+    assert isinstance(app.screen, StatsScreen), (
+        f"expected StatsScreen, got {type(app.screen).__name__}"
+    )
+
+    await pilot.press("n")
+    await pilot.pause()
+    assert not isinstance(app.screen, StatsScreen), "stats didn't dismiss on n"
+    assert g.board.values_snapshot() == before, (
+        "dismissing stats with n triggered app-level new-game flow"
+    )
+    assert g.board.score == 500, "score changed after dismissing stats"
+
+
 async def s_sound_toggle(app_unused, pilot_unused):
     """Sounds module: toggle flips enabled; disabled sounds are no-ops;
     debounce drops bursts."""
@@ -682,12 +727,14 @@ SCENARIOS: list[Scenario] = [
     Scenario("up_and_down_work", s_up_and_down_work),
     Scenario("header_reflects_score", s_header_reflects_score),
     Scenario("autosave_persists_game", s_autosave_persists_game),
+    Scenario("autosave_write_failure_is_nonfatal", s_autosave_write_failure_is_nonfatal),
     Scenario("savegame_cleared_on_terminal_state", s_savegame_cleared_on_terminal_state),
     Scenario("resume_restores_board", s_resume_restores_board),
     Scenario("no_resume_flag", s_no_resume_flag),
     Scenario("new_game_confirm_modal", s_new_game_confirm_modal),
     Scenario("new_game_confirm_accepts", s_new_game_confirm_accepts),
     Scenario("stats_screen_opens", s_stats_screen_opens),
+    Scenario("stats_dismiss_key_does_not_trigger_app_action", s_stats_dismiss_key_does_not_trigger_app_action),
     Scenario("sound_toggle", s_sound_toggle),
     Scenario("pulse_alternates_banner", s_pulse_alternates_banner),
 ]

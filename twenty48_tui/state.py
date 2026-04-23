@@ -58,14 +58,22 @@ def load() -> dict[str, Any]:
     return data
 
 
-def save(data: dict[str, Any]) -> None:
-    """Atomic write — write to .tmp, then rename. Survives a SIGKILL
-    mid-write without leaving a truncated state.json."""
-    STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    tmp = STATE_PATH.with_suffix(".tmp")
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
-    tmp.replace(STATE_PATH)
+def save(data: dict[str, Any]) -> bool:
+    """Atomic write — write to .tmp, then rename.
+
+    Returns True on success, False on write failure. Persistence errors
+    should never crash gameplay; callers may choose to surface a non-fatal
+    warning when this returns False.
+    """
+    try:
+        STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        tmp = STATE_PATH.with_suffix(".tmp")
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+        tmp.replace(STATE_PATH)
+        return True
+    except OSError:
+        return False
 
 
 def best_for_size(data: dict[str, Any], size: int) -> int:
