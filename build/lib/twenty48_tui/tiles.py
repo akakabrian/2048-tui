@@ -1,13 +1,10 @@
-"""Tile palette — one style per value, matching Cirulli's browser colours
-then darkened slightly for terminal legibility.
+"""Tile palette — one style per value, tuned for the polished dark TUI.
 
-The classic palette (tailored for light backgrounds in the browser) reads
-as pastel on a dark terminal. We rebalance:
-  * low tiles (2–8) stay cool / cream on a warm brown background
-  * mid tiles (16–128) pick up orange/amber saturation
-  * high tiles (256–2048) go gold/yellow (the target colour)
-  * past-win tiles (4096+) fade to blue/black — they're bragging rights,
-    not the primary goal
+The ramp follows the mockup's intent:
+  * 2/4 are cream and peach
+  * 8–64 climb through orange into red-orange
+  * 128 is the red peak
+  * 256–2048 shift into yellow, warm gold, and trophy gold
 """
 
 from __future__ import annotations
@@ -18,18 +15,18 @@ from rich.style import Style
 # time — Style.parse() is non-trivial and tile rendering hits this every
 # frame. Same perf discipline as simcity-tui.
 _PALETTE: dict[int, tuple[str, str]] = {
-    0:    ("rgb(100,90,78)",   "rgb(30,26,22)"),    # empty cell
-    2:    ("rgb(120,110,100)", "rgb(240,230,210)"),
-    4:    ("rgb(90,80,70)",    "rgb(235,220,190)"),
-    8:    ("rgb(255,250,240)", "rgb(240,150,90)"),
-    16:   ("rgb(255,250,240)", "rgb(240,125,70)"),
-    32:   ("rgb(255,250,240)", "rgb(240,100,70)"),
-    64:   ("rgb(255,250,240)", "rgb(240,75,55)"),
-    128:  ("rgb(255,250,240)", "rgb(230,195,95)"),
-    256:  ("rgb(255,250,240)", "rgb(230,185,75)"),
-    512:  ("rgb(255,250,240)", "rgb(230,175,55)"),
-    1024: ("rgb(255,250,240)", "rgb(230,165,35)"),
-    2048: ("rgb(255,250,240)", "rgb(230,155,15)"),
+    0:    ("rgb(100,90,78)",   "rgb(34,31,27)"),    # empty cell
+    2:    ("rgb(58,48,37)",    "rgb(246,225,188)"),
+    4:    ("rgb(60,47,33)",    "rgb(238,199,139)"),
+    8:    ("rgb(255,245,218)", "rgb(236,150,47)"),
+    16:   ("rgb(255,242,216)", "rgb(229,118,39)"),
+    32:   ("rgb(255,238,212)", "rgb(219,83,34)"),
+    64:   ("rgb(255,235,211)", "rgb(206,58,36)"),
+    128:  ("rgb(255,232,210)", "rgb(177,48,43)"),
+    256:  ("rgb(48,38,19)",    "rgb(249,200,50)"),
+    512:  ("rgb(43,34,16)",    "rgb(245,179,28)"),
+    1024: ("rgb(38,29,12)",    "rgb(228,142,12)"),
+    2048: ("rgb(30,22,8)",     "rgb(255,211,38)"),
     # Beyond 2048 — cool blue/violet so they read as "past the finish line".
     4096: ("rgb(255,250,240)", "rgb(60,90,160)"),
     8192: ("rgb(255,250,240)", "rgb(80,70,170)"),
