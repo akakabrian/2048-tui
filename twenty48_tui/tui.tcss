@@ -7,26 +7,18 @@ Screen {
     height: 1fr;
 }
 
-#hud-row {
+#stats-banner {
     height: 1;
     background: #1b1510;
-    color: #e8dcc5;
+    color: #55754f;
     padding: 0 1;
 }
 
-#hud-left {
-    width: 1fr;
-    color: #ffd45a;
-}
-
-#hud-center {
-    width: 1fr;
-    text-align: center;
-}
-
-#hud-right {
-    width: 1fr;
-    text-align: right;
+#game-banner {
+    height: 1;
+    background: #1b1510;
+    color: #55754f;
+    padding: 0 1;
 }
 
 BoardView {

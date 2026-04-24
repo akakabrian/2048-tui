@@ -9,7 +9,7 @@ from rich.style import Style
 from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical
+from textual.containers import Vertical
 from textual.reactive import reactive
 from textual.strip import Strip
 from textual.widget import Widget
@@ -27,6 +27,9 @@ CELL_W = 7
 CELL_H = 3
 GAP_W = 1
 GAP_H = 1
+
+BANNER_RULE = "#55754f"
+BANNER_LABEL = "#ffd45a"
 
 
 class BoardView(Widget):
@@ -186,9 +189,8 @@ class Twenty48App(App):
 
         self.game.best_score = state_mod.best_for_size(self._state, size)
         self.board_view = BoardView(self.game)
-        self.hud_left = Static(id="hud-left")
-        self.hud_center = Static(id="hud-center")
-        self.hud_right = Static(id="hud-right")
+        self.stats_banner = Static(id="stats-banner")
+        self.game_banner = Static(id="game-banner")
         self.context_line = Static(" ", id="context-line")
         self.help_overlay = HelpOverlay()
         self.help_overlay.id = "help-overlay"
@@ -221,10 +223,8 @@ class Twenty48App(App):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="main"):
-            with Horizontal(id="hud-row"):
-                yield self.hud_left
-                yield self.hud_center
-                yield self.hud_right
+            yield self.stats_banner
+            yield self.game_banner
             yield self.board_view
             yield self.context_line
         yield self.help_overlay
@@ -250,16 +250,39 @@ class Twenty48App(App):
             return f"{h:02d}:{m:02d}:{s:02d}"
         return f"{m:02d}:{s:02d}"
 
+    def _banner_text(self, labels: list[str]) -> Text:
+        width = max(24, self.size.width or 80)
+        chars = list("╌" * width)
+        ranges: list[tuple[int, int]] = []
+        cursor = 2
+        for label in labels:
+            seg = f" {label} "
+            if cursor + len(seg) > width:
+                break
+            end = cursor + len(seg)
+            chars[cursor:end] = seg
+            ranges.append((cursor, end))
+            cursor = end + 4
+        text = Text("".join(chars), style=BANNER_RULE)
+        for start, end in ranges:
+            text.stylize(f"bold {BANNER_LABEL}", start, end)
+        return text
+
     def _set_context(self, msg: str) -> None:
         self.context_line.update(Text.from_markup(msg))
 
     def _refresh_hud(self) -> None:
         s = self.game.state()
-        self.hud_left.update("[b #ffd45a]2048[/b #ffd45a]")
-        self.hud_center.update(
-            f"[b]Time[/b] {self._elapsed_text()}   [b]Moves[/b] {s['moves']:,}"
+        self.stats_banner.update(
+            self._banner_text(
+                [
+                    f"SCORE {s['score']:,}",
+                    f"BEST {s['best']:,}",
+                    f"MOVES {s['moves']:,}",
+                ]
+            )
         )
-        self.hud_right.update(f"[b]Score[/b] [#ffd45a]{s['score']:,}[/#ffd45a]")
+        self.game_banner.update(self._banner_text(["2048"]))
         state_bits = []
         if s["won"] and not s["continued"]:
             state_bits.append("WON")
@@ -271,7 +294,6 @@ class Twenty48App(App):
         self.sub_title = (
             f"score {s['score']:,}  ·  best {s['best']:,}  ·  max {s['max_tile']}{suffix}"
         )
-        self.board_view.border_title = f"2048 · {s['size']}×{s['size']}"
 
     def _show_hint(self) -> None:
         s = self.game.state()
