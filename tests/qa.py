@@ -73,7 +73,6 @@ def col_values(g: Game, x: int) -> list[int]:
 async def s_mount_clean(app, pilot):
     assert app.game is not None
     assert app.board_view is not None
-    assert app.status_panel is not None
     # Freshly-mounted game has 2 spawned tiles.
     non_zero = sum(1 for _x, _y, t in app.game.board.cells() if t.value > 0)
     assert non_zero == 2, f"expected 2 starting tiles, got {non_zero}"
@@ -478,8 +477,7 @@ async def s_header_reflects_score(app, pilot):
     set_board(g, [[2, 2, 0, 0], [0]*4, [0]*4, [0]*4])
     await pilot.press("left")
     await pilot.pause()
-    # Force the app to update the header (tick/on_mount normally does).
-    app._update_header()
+    app._refresh_hud()
     assert "score" in app.sub_title.lower()
 
 
@@ -683,20 +681,10 @@ async def s_sound_toggle(app_unused, pilot_unused):
     assert calls == ["merge"], "debounce failed"
 
 
-async def s_pulse_alternates_banner(app, pilot):
-    """The 2 Hz pulse should alternate `_pulse_phase` so the win banner
-    subtly shifts between two bright styles."""
-    g = app.game
-    # Put into won-not-continued state.
-    from tests.qa import set_board as _sb  # avoid shadowing
-    _sb(g, [[2048, 0, 0, 0], [0]*4, [0]*4, [0]*4])
-    g.won = True
-    g.continued = False
-    p0 = app.status_panel._pulse_phase
-    app._pulse()
-    assert app.status_panel._pulse_phase != p0, "pulse didn't flip phase"
-    app._pulse()
-    assert app.status_panel._pulse_phase == p0, "pulse didn't flip back"
+async def s_hud_timer_renders_elapsed(app, pilot):
+    """HUD timer should show elapsed time and refresh without moves."""
+    app._started_at -= 125  # 2m05s
+    assert app._elapsed_text() == "02:05"
 
 
 SCENARIOS: list[Scenario] = [
@@ -736,7 +724,7 @@ SCENARIOS: list[Scenario] = [
     Scenario("stats_screen_opens", s_stats_screen_opens),
     Scenario("stats_dismiss_key_does_not_trigger_app_action", s_stats_dismiss_key_does_not_trigger_app_action),
     Scenario("sound_toggle", s_sound_toggle),
-    Scenario("pulse_alternates_banner", s_pulse_alternates_banner),
+    Scenario("hud_timer_renders_elapsed", s_hud_timer_renders_elapsed),
 ]
 
 
