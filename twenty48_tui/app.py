@@ -34,6 +34,15 @@ BANNER_LABEL = "#ffd45a"
 HUD_BORDER = "#b9893d"
 HUD_LABEL = "#f1bf65"
 HUD_VALUE = "#ffe08a"
+TITLE_GOLD = "#ffd45a"
+
+TITLE_ART = (
+    " ██████   ██████   ██  ██   █████ ",
+    "     ██  ██  ████  ██  ██  ██  ██",
+    "  █████  ██ ██ ██  ██████   █████ ",
+    " ██      ████  ██      ██  ██  ██",
+    " ██████   ██████       ██   █████ ",
+)
 
 
 class BoardView(Widget):
@@ -311,13 +320,24 @@ class Twenty48App(App):
 
         return Text("\n").join(lines)
 
+    def _title_banner_text(self) -> Text:
+        title_width = max(len(line) for line in TITLE_ART)
+        available_width = max(title_width, self.size.width or 80)
+        lines: list[Text] = []
+        for raw_line in TITLE_ART:
+            left_pad = max(0, (available_width - len(raw_line)) // 2)
+            line = Text(" " * left_pad)
+            line.append(raw_line, style=f"bold {TITLE_GOLD}")
+            lines.append(line)
+        return Text("\n").join(lines)
+
     def _set_context(self, msg: str) -> None:
         self.context_line.update(Text.from_markup(msg))
 
     def _refresh_hud(self) -> None:
         s = self.game.state()
         self.stats_banner.update(self._chip_hud_text(s))
-        self.game_banner.update(self._banner_text(["2048"]))
+        self.game_banner.update(self._title_banner_text())
         state_bits = []
         if s["won"] and not s["continued"]:
             state_bits.append("WON")

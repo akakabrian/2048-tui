@@ -15,9 +15,9 @@ Screen {
 }
 
 #game-banner {
-    height: 1;
+    height: 5;
     background: #1b1510;
-    color: #55754f;
+    color: #ffd45a;
     padding: 0 1;
 }
 
