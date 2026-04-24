@@ -22,6 +22,7 @@ from textual.containers import Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
+from .engine import Game
 from . import state as state_mod
 
 
@@ -111,3 +112,93 @@ class ConfirmScreen(ModalScreen[bool]):
 
     def action_confirm_no(self) -> None:
         self.dismiss(False)
+
+
+class EndScreen(ModalScreen[str]):
+    """Win / game-over celebration card."""
+
+    BINDINGS = [
+        Binding("escape", "dismiss_screen('dismiss')", show=False),
+        Binding("enter", "dismiss_screen('new')", show=False),
+        Binding("n", "dismiss_screen('new')", show=False),
+        Binding("c", "dismiss_screen('continue')", show=False),
+    ]
+
+    DEFAULT_CSS = """
+    EndScreen {
+        align: center middle;
+        background: #07190f 70%;
+    }
+    #end-box {
+        width: 60;
+        height: auto;
+        border: heavy #ffd45a;
+        background: #07190f;
+        padding: 1 3;
+    }
+    #end-banner {
+        text-align: center;
+        color: #ffd45a;
+        text-style: bold;
+    }
+    #end-body {
+        text-align: center;
+        color: #efe8d1;
+        margin-top: 1;
+    }
+    #end-stats {
+        text-align: center;
+        color: #8faa83;
+        margin-top: 1;
+    }
+    #end-foot {
+        text-align: center;
+        color: #8faa83;
+        margin-top: 1;
+    }
+    """
+
+    def __init__(self, game: Game, elapsed: str, won: bool) -> None:
+        super().__init__()
+        self._game = game
+        self._elapsed = elapsed
+        self._won = won
+
+    def compose(self) -> ComposeResult:
+        if self._won:
+            title = " Y O U   R E A C H E D   2 0 4 8 "
+            body = "✦   ✦   ✦   ✦   ✦   ✦   ✦   ✦"
+            prompt = "[dim]Enter / n — play again   ·   c — continue   ·   Esc — dismiss[/dim]"
+        else:
+            title = " G A M E   O V E R "
+            body = "•   •   •   •   •   •   •   •"
+            prompt = "[dim]Enter / n — play again   ·   Esc — dismiss[/dim]"
+        banner = "\n".join(
+            [
+                " ✦   ✦   ✦   ✦   ✦   ✦   ✦   ✦ ",
+                " ╔══════════════════════════╗ ",
+                f" ║{title.center(26)}║ ",
+                " ╚══════════════════════════╝ ",
+                " ✦   ✦   ✦   ✦   ✦   ✦   ✦   ✦ ",
+            ]
+        )
+        s = self._game.state()
+        stats = (
+            f"[b]2048 {s['size']}x{s['size']}[/b]\n"
+            f"Time:   {self._elapsed or '00:00'}\n"
+            f"Moves:  {s['moves']}\n"
+            f"Score:  {s['score']:,}\n"
+            f"Max:    {s['max_tile']}\n"
+            f"Seed:   {self._game.seed if self._game.seed is not None else '—'}"
+        )
+        with Vertical(id="end-box"):
+            yield Static(banner, id="end-banner")
+            yield Static(body, id="end-body")
+            yield Static(stats, id="end-stats")
+            yield Static(prompt, id="end-foot")
+
+    def action_dismiss_screen(self, result: str) -> None:
+        if result == "continue" and not self._won:
+            self.dismiss("dismiss")
+            return
+        self.dismiss(result)

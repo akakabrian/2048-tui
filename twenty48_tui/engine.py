@@ -86,11 +86,21 @@ class Game:
     win/continue/over flags. All state mutations go through `move()` or
     `new_game()`."""
 
-    def __init__(self, size: int = 4, win_value: int = WIN_VALUE,
-                 rng: random.Random | None = None) -> None:
+    def __init__(
+        self,
+        size: int = 4,
+        win_value: int = WIN_VALUE,
+        rng: random.Random | None = None,
+        seed: int | None = None,
+    ) -> None:
         self.size = size
         self.win_value = win_value
-        self.rng = rng if rng is not None else random.Random()
+        if rng is not None:
+            self.rng = rng
+            self.seed = seed
+        else:
+            self.seed = seed if seed is not None else random.randint(1, 2**31 - 1)
+            self.rng = random.Random(self.seed)
         self.board = Board(size=size)
         self.best_score: int = 0
         # Undo stack — list of (board_snapshot, score, flags) tuples. The
@@ -376,6 +386,7 @@ class Game:
         return {
             "size": self.size,
             "win_value": self.win_value,
+            "seed": self.seed,
             "score": self.board.score,
             "best": self.best_score,
             "won": self.won,
@@ -393,7 +404,8 @@ class Game:
         size = int(data.get("size", 4))
         g = cls(size=size,
                 win_value=int(data.get("win_value", WIN_VALUE)),
-                rng=rng)
+                rng=rng,
+                seed=(int(data["seed"]) if "seed" in data else None))
         # Overwrite the seeded start-of-game state with the saved one.
         values = data.get("values")
         if values:

@@ -19,7 +19,7 @@ from . import state as state_mod
 from . import tiles
 from .engine import DIRECTIONS, Game
 from .music import MusicPlayer
-from .screens import ConfirmScreen, StatsScreen
+from .screens import ConfirmScreen, EndScreen, StatsScreen
 from .sounds import SoundBoard
 
 
@@ -317,6 +317,15 @@ class Twenty48App(App):
             s = self.game.state()
             if s["won"] and not won_before:
                 self.soundboard.play("winwon.wav")
+                self.push_screen(
+                    EndScreen(self.game, elapsed=self._elapsed_text(), won=True),
+                    self._on_end_screen,
+                )
+            elif s["game_over"]:
+                self.push_screen(
+                    EndScreen(self.game, elapsed=self._elapsed_text(), won=False),
+                    self._on_end_screen,
+                )
             elif s["merges"] > merges_before:
                 self.soundboard.play("flip.wav")
             self._autosave()
@@ -385,6 +394,18 @@ class Twenty48App(App):
             self._refresh_hud()
         else:
             self._set_context("[dim]continue is for after you reach 2048[/]")
+
+    def _on_end_screen(self, result: str | None) -> None:
+        if result == "new":
+            self._do_new_game()
+            return
+        if result == "continue":
+            if self.game.won and not self.game.continued:
+                self.game.continue_after_win()
+                self._set_context("[dim]continuing past 2048[/]")
+                self._refresh_hud()
+            return
+        self._show_hint()
 
     def action_change_size(self, delta: str) -> None:
         if self.help_overlay.display:
