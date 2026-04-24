@@ -31,6 +31,9 @@ GAP_H = 1
 
 BANNER_RULE = "#55754f"
 BANNER_LABEL = "#ffd45a"
+HUD_BORDER = "#b9893d"
+HUD_LABEL = "#f1bf65"
+HUD_VALUE = "#ffe08a"
 
 
 class BoardView(Widget):
@@ -271,20 +274,49 @@ class Twenty48App(App):
             text.stylize(f"bold {BANNER_LABEL}", start, end)
         return text
 
+    def _chip_hud_text(self, stats: dict[str, object]) -> Text:
+        chips = [
+            ("SCORE", f"{int(stats['score']):,}"),
+            ("BEST", f"{int(stats['best']):,}"),
+            ("MOVES", f"{int(stats['moves']):,}"),
+            ("TIME", self._elapsed_text()),
+        ]
+        chip_widths = [
+            max(12, len(label) + 6, len(value) + 6)
+            for label, value in chips
+        ]
+        gap = "  "
+        total_width = sum(chip_widths) + len(gap) * (len(chips) - 1)
+        available_width = max(total_width, self.size.width or 80)
+        left_pad = max(0, (available_width - total_width) // 2)
+
+        lines = [Text(" " * left_pad) for _ in range(4)]
+        for index, ((label, value), chip_width) in enumerate(zip(chips, chip_widths)):
+            if index:
+                for line in lines:
+                    line.append(gap)
+
+            inner_width = chip_width - 2
+            label_pad = label.center(inner_width)
+            value_pad = value.center(inner_width)
+
+            lines[0].append("╭" + "─" * inner_width + "╮", style=HUD_BORDER)
+            lines[1].append("│", style=HUD_BORDER)
+            lines[1].append(label_pad, style=f"bold {HUD_LABEL}")
+            lines[1].append("│", style=HUD_BORDER)
+            lines[2].append("│", style=HUD_BORDER)
+            lines[2].append(value_pad, style=f"bold {HUD_VALUE}")
+            lines[2].append("│", style=HUD_BORDER)
+            lines[3].append("╰" + "─" * inner_width + "╯", style=HUD_BORDER)
+
+        return Text("\n").join(lines)
+
     def _set_context(self, msg: str) -> None:
         self.context_line.update(Text.from_markup(msg))
 
     def _refresh_hud(self) -> None:
         s = self.game.state()
-        self.stats_banner.update(
-            self._banner_text(
-                [
-                    f"SCORE {s['score']:,}",
-                    f"BEST {s['best']:,}",
-                    f"MOVES {s['moves']:,}",
-                ]
-            )
-        )
+        self.stats_banner.update(self._chip_hud_text(s))
         self.game_banner.update(self._banner_text(["2048"]))
         state_bits = []
         if s["won"] and not s["continued"]:

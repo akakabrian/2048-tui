@@ -8,9 +8,9 @@ Screen {
 }
 
 #stats-banner {
-    height: 1;
+    height: 4;
     background: #1b1510;
-    color: #55754f;
+    color: #ffe08a;
     padding: 0 1;
 }
 
