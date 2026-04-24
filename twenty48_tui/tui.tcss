@@ -33,7 +33,7 @@ BoardView {
     height: 1;
     padding: 0 1;
     background: #1b1510;
-    color: #8f8678;
+    color: #f1bf65;
 }
 
 #help-overlay {

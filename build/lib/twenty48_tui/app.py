@@ -43,6 +43,7 @@ TITLE_ART = (
     " ██      ████  ██      ██  ██  ██",
     " ██████   ██████       ██   █████ ",
 )
+FOOTER_HINT = "← → ↑ ↓ move  ·  u undo  ·  n new  ·  r rules  ·  m music  ·  ? help"
 
 
 class BoardView(Widget):
@@ -206,7 +207,7 @@ class Twenty48App(App):
         self.board_view = BoardView(self.game)
         self.stats_banner = Static(id="stats-banner")
         self.game_banner = Static(id="game-banner")
-        self.context_line = Static(" ", id="context-line")
+        self.context_line = Static(FOOTER_HINT, id="context-line")
         self.help_overlay = HelpOverlay()
         self.help_overlay.id = "help-overlay"
         self.soundboard = SoundBoard(enabled=sound)
@@ -331,13 +332,22 @@ class Twenty48App(App):
             lines.append(line)
         return Text("\n").join(lines)
 
+    def _footer_hint_text(self) -> Text:
+        available_width = max(len(FOOTER_HINT), self.size.width or 80)
+        left_pad = max(0, (available_width - len(FOOTER_HINT)) // 2)
+        text = Text(" " * left_pad)
+        text.append(FOOTER_HINT, style=f"bold {HUD_LABEL}")
+        return text
+
     def _set_context(self, msg: str) -> None:
-        self.context_line.update(Text.from_markup(msg))
+        self.sub_title = Text.from_markup(msg).plain
+        self.context_line.update(self._footer_hint_text())
 
     def _refresh_hud(self) -> None:
         s = self.game.state()
         self.stats_banner.update(self._chip_hud_text(s))
         self.game_banner.update(self._title_banner_text())
+        self.context_line.update(self._footer_hint_text())
         state_bits = []
         if s["won"] and not s["continued"]:
             state_bits.append("WON")
@@ -351,15 +361,7 @@ class Twenty48App(App):
         )
 
     def _show_hint(self) -> None:
-        s = self.game.state()
-        if s["game_over"]:
-            self._set_context("[dim]No moves left · n new game · t stats · q quit[/]")
-        elif s["won"] and not s["continued"]:
-            self._set_context("[dim]Reached 2048 · c continue · n new game[/]")
-        else:
-            self._set_context(
-                "[dim]←↑→↓ / hjkl move · u undo · n new · t stats · r rules · m music · s sound · ? help · q quit[/]"
-            )
+        self.context_line.update(self._footer_hint_text())
 
     def _animate_move(self) -> None:
         self.board_view.anim_t = 0.0
