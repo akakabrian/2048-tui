@@ -1,4 +1,4 @@
-.PHONY: all venv run test test-only playtest perf clean
+.PHONY: all venv run test test-only playtest perf update clean
 
 # Bootstrap / engine targets are no-ops here: the "engine" is pure Python
 # (see DECISIONS.md). Kept as a convention so `make all` still means
@@ -11,7 +11,7 @@ venv: .venv/bin/python
 	.venv/bin/pip install -e .
 
 run: venv
-	.venv/bin/python play.py
+	.venv/bin/python play.py $(ARGS)
 
 # Full QA suite.
 test: venv
@@ -28,6 +28,10 @@ playtest: venv
 # Perf benchmark baseline.
 perf: venv
 	.venv/bin/python -m tests.perf
+
+update:
+	git pull
+	.venv/bin/pip install -e .
 
 clean:
 	rm -rf .venv *.egg-info tests/out/*.svg tests/out/*.png

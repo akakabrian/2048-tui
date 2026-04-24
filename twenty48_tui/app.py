@@ -120,6 +120,10 @@ _HELP_TEXT = (
     "  +/-               board size up/down (3..6)\\n"
     "  ?                 toggle this help\\n"
     "  q                 quit\\n\\n"
+    "[bold]Music credits[/]\\n"
+    "  Happy — Alex McCulloch (CC0 1.0)\\n"
+    "  Easy Lemon — Kevin MacLeod (CC-BY 4.0)\\n"
+    "  Fluffing a Duck — Kevin MacLeod (CC-BY 4.0)\\n\\n"
     "[dim]press any key to dismiss[/]"
 )
 
