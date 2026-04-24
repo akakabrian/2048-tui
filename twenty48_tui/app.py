@@ -119,6 +119,7 @@ _HELP_TEXT = (
     "  n                 new game\\n"
     "  c                 continue after win\\n"
     "  t                 stats — per-size best scores\\n"
+    "  r                 rules\\n"
     "  m                 toggle background music\\n"
     "  s                 toggle sound effects\\n"
     "  +/-               board size up/down (3..6)\\n"
@@ -305,7 +306,7 @@ class Twenty48App(App):
             self._set_context("[dim]Reached 2048 · c continue · n new game[/]")
         else:
             self._set_context(
-                "[dim]←↑→↓ / hjkl move · u undo · n new · t stats · m music · s sound · ? help · q quit[/]"
+                "[dim]←↑→↓ / hjkl move · u undo · n new · t stats · r rules · m music · s sound · ? help · q quit[/]"
             )
 
     def _animate_move(self) -> None:
@@ -363,7 +364,9 @@ class Twenty48App(App):
                 self._set_context("[dim]No moves left · n new game · t stats · q quit[/]")
             else:
                 last = "merged" if s["merges"] > merges_before else "slid"
-                self._set_context(f"[dim]{direction}: {last} · u undo · n new · ? help[/]")
+                self._set_context(
+                    f"[dim]{direction}: {last} · u undo · n new · r rules · ? help[/]"
+                )
         else:
             self.soundboard.play("nomove.wav")
             self._set_context(f"[dim]{direction}: no move · try another direction[/]")

@@ -41,6 +41,7 @@ make run
 | `n` | new game |
 | `c` | continue after reaching 2048 |
 | `t` | stats modal |
+| `r` | rules modal |
 | `m` | toggle background music |
 | `s` | toggle sound effects |
 | `+` / `-` | board size up/down (3..6) |
