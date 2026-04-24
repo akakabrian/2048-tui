@@ -18,7 +18,7 @@ from __future__ import annotations
 from textual import events
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical
+from textual.containers import Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
@@ -82,6 +82,56 @@ class StatsScreen(ModalScreen[None]):
         event.stop()
         event.prevent_default()
         self.dismiss(None)
+
+
+class RulesScreen(ModalScreen[None]):
+    """Rules modal for 2048."""
+
+    BINDINGS = [Binding("escape", "dismiss", show=False),
+                Binding("q", "dismiss", show=False),
+                Binding("r", "dismiss", show=False)]
+
+    DEFAULT_CSS = """
+    RulesScreen {
+        align: center middle;
+        background: #07190f 70%;
+    }
+    #rules-box {
+        width: 80%;
+        max-width: 88;
+        height: auto;
+        max-height: 90%;
+        border: round #ffd45a;
+        background: #07190f;
+        padding: 1 2;
+    }
+    #rules-title {
+        color: #ffd45a;
+        text-style: bold;
+        text-align: center;
+        margin-bottom: 1;
+    }
+    #rules-body {
+        color: #efe8d1;
+    }
+    #rules-foot {
+        margin-top: 1;
+        color: #8faa83;
+        text-align: center;
+    }
+    """
+
+    def __init__(self, variant: str, text: str) -> None:
+        super().__init__()
+        self._variant = variant
+        self._text = text
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="rules-box"):
+            yield Static(f"◆ {self._variant} — rules ◆", id="rules-title")
+            with VerticalScroll():
+                yield Static(self._text, id="rules-body")
+            yield Static("[dim]Esc / r / q — close[/dim]", id="rules-foot")
 
 
 class ConfirmScreen(ModalScreen[bool]):

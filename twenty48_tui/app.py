@@ -19,7 +19,8 @@ from . import state as state_mod
 from . import tiles
 from .engine import DIRECTIONS, Game
 from .music import MusicPlayer
-from .screens import ConfirmScreen, EndScreen, StatsScreen
+from .rules import RULES_TEXT
+from .screens import ConfirmScreen, EndScreen, RulesScreen, StatsScreen
 from .sounds import SoundBoard
 
 
@@ -150,6 +151,7 @@ class Twenty48App(App):
         Binding("m", "toggle_music", "Music"),
         Binding("s", "toggle_sound", "Sound"),
         Binding("t", "stats", "Stats"),
+        Binding("r", "rules", "Rules"),
         Binding("question_mark", "toggle_help", "Help"),
         Binding("plus", "change_size(1)", "Size+", show=False),
         Binding("minus", "change_size(-1)", "Size-", show=False),
@@ -480,6 +482,12 @@ class Twenty48App(App):
             self._set_context("[dim]music unavailable (missing player/tracks)[/]")
             return
         self._set_context(f"[dim]music {'on' if on else 'off'}[/]")
+
+    def action_rules(self) -> None:
+        if self.help_overlay.display:
+            self._hide_help()
+            return
+        self.push_screen(RulesScreen("2048", RULES_TEXT))
 
     def action_stats(self) -> None:
         if self.help_overlay.display:
