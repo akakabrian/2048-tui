@@ -18,8 +18,9 @@ from textual.widgets import Static
 from . import state as state_mod
 from . import tiles
 from .engine import DIRECTIONS, Game
+from .music import MusicPlayer
 from .screens import ConfirmScreen, StatsScreen
-from .sounds import Sounds
+from .sounds import SoundBoard
 
 
 CELL_W = 7
@@ -114,7 +115,8 @@ _HELP_TEXT = (
     "  n                 new game\\n"
     "  c                 continue after win\\n"
     "  t                 stats — per-size best scores\\n"
-    "  s                 toggle merge sounds\\n"
+    "  m                 toggle background music\\n"
+    "  s                 toggle sound effects\\n"
     "  +/-               board size up/down (3..6)\\n"
     "  ?                 toggle this help\\n"
     "  q                 quit\\n\\n"
@@ -138,6 +140,7 @@ class Twenty48App(App):
         Binding("n", "new_game", "New"),
         Binding("u", "undo", "Undo"),
         Binding("c", "continue_game", "Continue"),
+        Binding("m", "toggle_music", "Music"),
         Binding("s", "toggle_sound", "Sound"),
         Binding("t", "stats", "Stats"),
         Binding("question_mark", "toggle_help", "Help"),
@@ -153,7 +156,14 @@ class Twenty48App(App):
         Binding("l", "move('right')", "l", show=False, priority=True),
     ]
 
-    def __init__(self, size: int = 4, *, resume: bool = True) -> None:
+    def __init__(
+        self,
+        size: int = 4,
+        *,
+        resume: bool = True,
+        music: bool = False,
+        sound: bool = True,
+    ) -> None:
         super().__init__()
         self._state = state_mod.load()
         save_blob = state_mod.load_savegame(self._state) if resume else None
@@ -178,7 +188,8 @@ class Twenty48App(App):
         self.context_line = Static(" ", id="context-line")
         self.help_overlay = HelpOverlay()
         self.help_overlay.id = "help-overlay"
-        self.sounds = Sounds()
+        self.soundboard = SoundBoard(enabled=sound)
+        self.music = MusicPlayer(enabled=music)
         self._started_at = time.monotonic()
 
     def game_state_vector(self):
@@ -216,12 +227,16 @@ class Twenty48App(App):
 
     async def on_mount(self) -> None:
         self._started_at = time.monotonic()
+        self.music.start()
         self._refresh_hud()
         if self._resumed:
             self._set_context(f"[dim]resumed game — score {self.game.board.score:,}[/]")
         else:
             self._show_hint()
         self.set_interval(1.0, self._refresh_hud)
+
+    async def on_unmount(self) -> None:
+        self.music.stop()
 
     def _elapsed_text(self) -> str:
         sec = int(max(0.0, time.monotonic() - self._started_at))
@@ -261,7 +276,9 @@ class Twenty48App(App):
         elif s["won"] and not s["continued"]:
             self._set_context("[dim]Reached 2048 · c continue · n new game[/]")
         else:
-            self._set_context("[dim]←↑→↓ / hjkl move · u undo · n new · t stats · s sound · ? help · q quit[/]")
+            self._set_context(
+                "[dim]←↑→↓ / hjkl move · u undo · n new · t stats · m music · s sound · ? help · q quit[/]"
+            )
 
     def _animate_move(self) -> None:
         self.board_view.anim_t = 0.0
@@ -299,13 +316,9 @@ class Twenty48App(App):
             state_mod.record_best(self._state, self.game.size, self.game.best_score)
             s = self.game.state()
             if s["won"] and not won_before:
-                self.sounds.play("win")
-            elif s["game_over"]:
-                self.sounds.play("over")
+                self.soundboard.play("winwon.wav")
             elif s["merges"] > merges_before:
-                self.sounds.play("merge")
-            else:
-                self.sounds.play("move")
+                self.soundboard.play("flip.wav")
             self._autosave()
             if s["won"] and not s["continued"]:
                 self._set_context("[dim]Reached 2048 · c continue · n new game[/]")
@@ -315,6 +328,7 @@ class Twenty48App(App):
                 last = "merged" if s["merges"] > merges_before else "slid"
                 self._set_context(f"[dim]{direction}: {last} · u undo · n new · ? help[/]")
         else:
+            self.soundboard.play("nomove.wav")
             self._set_context(f"[dim]{direction}: no move · try another direction[/]")
         self._refresh_hud()
 
@@ -353,6 +367,7 @@ class Twenty48App(App):
 
     def _do_new_game(self) -> None:
         self.game.new_game()
+        self.soundboard.play("dealwaste.wav")
         self._started_at = time.monotonic()
         state_mod.store_savegame(self._state, None)
         state_mod.save(self._state)
@@ -403,11 +418,21 @@ class Twenty48App(App):
         if self.help_overlay.display:
             self._hide_help()
             return
-        if not self.sounds.available:
+        if not self.soundboard.available:
             self._set_context("[dim]no audio player found (paplay/aplay/afplay)[/]")
             return
-        on = self.sounds.toggle()
+        on = self.soundboard.toggle()
         self._set_context(f"[dim]sound {'on' if on else 'off'}[/]")
+
+    def action_toggle_music(self) -> None:
+        if self.help_overlay.display:
+            self._hide_help()
+            return
+        on = self.music.toggle()
+        if not self.music.enabled:
+            self._set_context("[dim]music unavailable (missing player/tracks)[/]")
+            return
+        self._set_context(f"[dim]music {'on' if on else 'off'}[/]")
 
     def action_stats(self) -> None:
         if self.help_overlay.display:
@@ -417,11 +442,18 @@ class Twenty48App(App):
         self.push_screen(StatsScreen(self._state))
 
 
-def run(size: int = 4, *, resume: bool = True) -> None:
-    app = Twenty48App(size=size, resume=resume)
+def run(
+    size: int = 4,
+    *,
+    resume: bool = True,
+    music: bool = False,
+    sound: bool = True,
+) -> None:
+    app = Twenty48App(size=size, resume=resume, music=music, sound=sound)
     try:
         app.run()
     finally:
+        app.music.stop()
         import sys
 
         sys.stdout.write("\033[?1000l\033[?1002l\033[?1003l\033[?1006l\033[?1015l\033[?25h")

@@ -15,4 +15,8 @@ build-backend = "setuptools.build_meta"
 packages = ["twenty48_tui"]
 
 [tool.setuptools.package-data]
-twenty48_tui = ["tui.tcss"]
+twenty48_tui = [
+    "tui.tcss",
+    "assets/music/*.mp3",
+    "assets/sound/*.wav",
+]
